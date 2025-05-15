@@ -1,0 +1,119 @@
+/*
+ * Power Management Driver for Raspberry Pi 4 Model B
+ *
+ * This driver demonstrates how to handle basic power management operations
+ * such as suspend/resume and GPIO power control.
+ */
+
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/platform_device.h>
+#include <linux/pm.h>
+#include <linux/gpio.h>
+/*
+The memory allocated with kzalloc() should be freed with kfree(). 
+The memory allocated with devm_kzalloc() is freed automatically.
+
+*/
+
+#define DRIVER_NAME "rpi4_pm_driver"
+#define GPIO_POWER_PIN 17 // Hardcoded GPIO pin for power control
+
+struct rpi4_pm_data {
+    int gpio_power_pin; // GPIO pin for power control
+};
+
+static int rpi4_pm_probe(struct platform_device *pdev) {
+    struct rpi4_pm_data *pm_data;
+    struct device *dev = &pdev->dev;
+    int ret;
+	/*
+	 simple words devm_kzalloc() and kzalloc() both are used 
+	 for memory allocation in device driver but the difference 
+	 is if you allocate memory by kzalloc() than you have to free 
+	 that memory when the life cycle of that device driver is ended 
+	 or when it is unloaded from kernel but if you do the same with 
+	 devm_kzalloc() you need not to worry about freeing memory,
+	 that memory is freed automatically by device library itself.
+
+	Both of them does the exactly the same thing but by using
+	devm_kzalloc little overhead of freeing memory is released from programmers
+	
+	
+	*/
+
+    // Allocate memory for driver data
+    pm_data = devm_kzalloc(dev, sizeof(*pm_data), GFP_KERNEL);
+    if (!pm_data)
+        return -ENOMEM;
+
+    // Use hardcoded GPIO pin
+    pm_data->gpio_power_pin = GPIO_POWER_PIN;
+
+    if (!gpio_is_valid(pm_data->gpio_power_pin)) {
+        dev_err(dev, "Invalid GPIO pin\n");
+        return -EINVAL;
+    }
+
+    // Request GPIO for use
+    ret = devm_gpio_request_one(dev, pm_data->gpio_power_pin, GPIOF_OUT_INIT_LOW, "power_gpio");
+    if (ret) {
+        dev_err(dev, "Failed to request GPIO\n");
+        return ret;
+    }
+
+    platform_set_drvdata(pdev, pm_data);
+
+    dev_info(dev, "Power management driver probed successfully\n");
+    return 0;
+}
+
+static int rpi4_pm_remove(struct platform_device *pdev) {
+    struct rpi4_pm_data *pm_data = platform_get_drvdata(pdev);
+
+    // Free GPIO resources
+    gpio_set_value(pm_data->gpio_power_pin, 0); // Turn off power
+    dev_info(&pdev->dev, "Power management driver removed\n");
+
+    return 0;
+}
+
+#ifdef CONFIG_PM_SLEEP
+static int rpi4_pm_suspend(struct device *dev) {
+    struct rpi4_pm_data *pm_data = dev_get_drvdata(dev);
+
+    // Simulate turning off peripherals
+    gpio_set_value(pm_data->gpio_power_pin, 0);
+    dev_info(dev, "System is suspending, power OFF\n");
+    return 0;
+}
+
+static int rpi4_pm_resume(struct device *dev) {
+    struct rpi4_pm_data *pm_data = dev_get_drvdata(dev);
+
+    // Simulate turning on peripherals
+    gpio_set_value(pm_data->gpio_power_pin, 1);
+    dev_info(dev, "System resumed, power ON\n");
+    return 0;
+}
+#endif
+
+static const struct dev_pm_ops rpi4_pm_ops = {
+    SET_SYSTEM_SLEEP_PM_OPS(rpi4_pm_suspend, rpi4_pm_resume)
+};
+
+static struct platform_driver rpi4_pm_driver = {
+    .probe = rpi4_pm_probe,
+    .remove = rpi4_pm_remove,
+    .driver = {
+        .name = DRIVER_NAME,
+        .pm = &rpi4_pm_ops,
+    },
+};
+
+module_platform_driver(rpi4_pm_driver);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("techdhaba");
+MODULE_DESCRIPTION("Power Management Driver for Raspberry Pi 4");

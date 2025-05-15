@@ -1,0 +1,57 @@
+#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <termios.h>
+#include <string.h>
+#include <errno.h>
+
+#define UART_DEVICE "/dev/serial0" // Default UART device
+
+int main() {
+    int uart_fd;
+    struct termios options;
+    char tx_buffer[] = "Hello, UART Loopback!\n";
+    char rx_buffer[256];
+    int bytes_written, bytes_read;
+
+    // Open UART device
+    uart_fd = open(UART_DEVICE, O_RDWR | O_NOCTTY | O_NDELAY);
+    if (uart_fd == -1) {
+        perror("Failed to open UART");
+        return 1;
+    }
+
+    // Configure UART
+    tcgetattr(uart_fd, &options);
+    options.c_cflag = B115200 | CS8 | CLOCAL | CREAD; // Baud rate, 8 data bits, enable receiver
+    options.c_iflag = IGNPAR;                        // Ignore parity
+    options.c_oflag = 0;
+    options.c_lflag = 0;                             // Non-canonical mode
+    tcflush(uart_fd, TCIFLUSH);
+    tcsetattr(uart_fd, TCSANOW, &options);
+
+    // Send data
+    bytes_written = write(uart_fd, tx_buffer, strlen(tx_buffer));
+    if (bytes_written < 0) {
+        perror("Failed to write to UART");
+        close(uart_fd);
+        return 1;
+    }
+    printf("Sent: %s", tx_buffer);
+
+    // Read data
+    usleep(100000); // Delay for data to loop back
+    bytes_read = read(uart_fd, rx_buffer, sizeof(rx_buffer) - 1);
+    if (bytes_read < 0) {
+        perror("Failed to read from UART");
+        close(uart_fd);
+        return 1;
+    }
+
+    rx_buffer[bytes_read] = '\0'; // Null-terminate the received string
+    printf("Received: %s", rx_buffer);
+
+    // Close UART
+    close(uart_fd);
+    return 0;
+}
