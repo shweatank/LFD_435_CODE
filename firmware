@@ -1,0 +1,100 @@
+baremetal-blink/
+├── Makefile
+├── boot/
+│   └── kernel8.img     <- Firmware output
+├── linker.ld
+├── main.c
+└── startup.S
+
+main.c
+
+#define PERIPHERAL_BASE  0xFE000000
+#define GPIO_BASE        (PERIPHERAL_BASE + 0x200000)
+
+#define GPFSEL1          ((volatile unsigned int*)(GPIO_BASE + 0x04))
+#define GPSET0           ((volatile unsigned int*)(GPIO_BASE + 0x1C))
+#define GPCLR0           ((volatile unsigned int*)(GPIO_BASE + 0x28))
+
+#define GPIO_PIN         18
+
+void delay(unsigned int count) {
+    for (volatile unsigned int i = 0; i < count; i++) { }
+}
+
+void kernel_main(void) {
+    // Set GPIO18 as output
+    unsigned int selector = *GPFSEL1;
+    selector &= ~(7 << 24); // Clear bits
+    selector |= (1 << 24);  // Set to output
+    *GPFSEL1 = selector;
+
+    while (1) {
+        *GPSET0 = (1 << GPIO_PIN);
+        delay(500000);
+        *GPCLR0 = (1 << GPIO_PIN);
+        delay(500000);
+    }
+}
+
+startup.S
+
+.section .text.boot
+.global _start
+_start:
+    ldr sp, =stack_top
+    bl kernel_main
+hang:
+    b hang
+
+.section .bss
+.space 4096
+stack_top:
+
+
+linker.ld
+
+ENTRY(_start)
+
+SECTIONS {
+    . = 0x80000;
+    .text : { *(.text.boot) *(.text*) }
+    .bss : { *(.bss*) }
+}
+
+Makefile
+
+CROSS_COMPILE = arm-none-eabi-
+CC = $(CROSS_COMPILE)gcc
+LD = $(CROSS_COMPILE)ld
+OBJCOPY = $(CROSS_COMPILE)objcopy
+
+CFLAGS = -ffreestanding -nostdlib -O2
+
+all: kernel8.img
+
+kernel8.img: start.o main.o
+	$(LD) -T linker.ld -o kernel8.elf start.o main.o
+	$(OBJCOPY) kernel8.elf -O binary boot/kernel8.img
+
+start.o: startup.S
+	$(CC) $(CFLAGS) -c startup.S -o start.o
+
+main.o: main.c
+	$(CC) $(CFLAGS) -c main.c -o main.o
+
+clean:
+	rm -f *.o *.elf boot/kernel8.img
+
+
+Step 2: Deploy Firmware
+Format an SD card (FAT32).
+
+Copy:
+
+Official bootcode.bin, start.elf, etc.
+
+Your kernel8.img → into /boot partition
+
+Insert into Pi and power up.
+
+Your LED should blink without Linux!
