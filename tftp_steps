@@ -1,0 +1,37 @@
+# 📦 Booting a Linux Kernel via TFTP using U-Boot
+
+This guide explains how to boot a Linux kernel over TFTP using U-Boot.
+
+---
+
+## 🔧 Prerequisites
+
+- **U-Boot** installed on your embedded device.
+- **TFTP Server** running on your development host (e.g., `tftpd-hpa` on Linux).
+- **Kernel Image** (e.g., `zImage`, `uImage`) and **Device Tree Blob** (e.g., `*.dtb`) available on the TFTP server.
+- **Network Configuration** set up between your device and the host.
+
+---
+
+## 🛠️ Steps to Boot Kernel via TFTP
+
+### 1. Stop Auto-Boot in U-Boot
+
+Interrupt the boot process by pressing a key during startup to access the U-Boot prompt.
+
+### 2. Set Network Parameters
+
+Configure the device's IP address and the TFTP server's IP address:
+
+```bash
+setenv ipaddr <device_ip>
+setenv serverip <tftp_server_ip>
+Load Kernel Image
+tftpboot <load_address> <kernel_image>
+4. Load Device Tree Blo
+tftpboot <dtb_load_address> <device_tree.dtb>
+5. Set Boot Arguments
+setenv bootargs console=tty1 root=/dev/nfs nfsroot=<nfs_server_ip>:/nfsroot rw ip=dhcp
+6. Boot the Kernel
+Execute the boot command:
+bootz <load_address> - <dtb_load_address>
